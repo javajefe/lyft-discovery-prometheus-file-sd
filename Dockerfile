@@ -6,4 +6,4 @@ ENV DISCOVERY_URL= \
 	REFRESH_INTERVAL=10
 VOLUME /tmp/out
 ADD ./download_sd.py /code/
-CMD python /code/download_sd.py $DISCOVERY_URL $SERVICE_REPO_NAME /tmp/out/file_sd.json $REFRESH_INTERVAL
+CMD python /code/download_sd.py $DISCOVERY_URL $SERVICE_REPO_NAME /tmp/out/file_sd $REFRESH_INTERVAL
