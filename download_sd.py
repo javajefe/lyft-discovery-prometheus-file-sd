@@ -34,45 +34,49 @@ class PrometheusFileSdDownlowdTask:
         if not repo_data["hosts"]:
             raise ValueError("Empty response")
         for host in repo_data["hosts"]:
+            if not("tags" in host.keys() and "metrics_ports" in host["tags"].keys()):
+                continue
             metrics_ports = host["tags"]["metrics_ports"]
             if not metrics_ports:
-                raise ValueError("metrics_ports is mandatory field in {}".format(host))
+                continue
             for port in metrics_ports.split(","):
                 if int(port) not in self.buckets.keys():
                     self.buckets[int(port)] = []
                 self.buckets[int(port)].append(self.__transformHostToPrometheusFileSD(host, port))
 
     def download(self):
-        logger.debug("------------------- Downloading -------------------")
+        logger.debug("------------------- Job start -------------------")
         try:
             self.buckets = {}
             self.__transformToPrometheusFileSD(self.__download_repo())
             for port, conf in self.buckets.items():
                 js = json.dumps(conf, indent=4)
-                os.umask(0)
                 file_name = "{}_{}.json".format(self.out_file_prefix, port)
-                with open(os.open(file_name, os.O_CREAT | os.O_WRONLY, 0o777), 'w') as file:
+                with open(file_name, 'w') as file:
                     file.write(js)
+                logger.debug("Saved file %s successfully", file_name)
+            if not self.buckets:
+                logger.debug("There is nothing to save, skipping")
         except Exception as ex:
             logger.exception(ex)
         return 'Ok'
 
 class PeriodicTimer(object):
-    def __init__(self, interval, callback):
+    def __init__(self, initial_delay, interval, callback):
+        self.initial_delay = initial_delay
         self.interval = interval
 
         @functools.wraps(callback)
         def wrapper(*args, **kwargs):
             result = callback(*args, **kwargs)
             if result:
-                self.thread = threading.Timer(self.interval,
-                                              self.callback)
+                self.thread = threading.Timer(self.interval, self.callback)
                 self.thread.start()
 
         self.callback = wrapper
 
     def start(self):
-        self.thread = threading.Timer(self.interval, self.callback)
+        self.thread = threading.Timer(self.initial_delay, self.callback)
         self.thread.start()
 
     def cancel(self):
@@ -82,5 +86,5 @@ if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.NOTSET)
     logger = logging.getLogger()
     downloader = PrometheusFileSdDownlowdTask(sys.argv[1], sys.argv[2], sys.argv[3])
-    timer = PeriodicTimer(int(sys.argv[4]), downloader.download)
+    timer = PeriodicTimer(int(sys.argv[4]), int(sys.argv[5]), downloader.download)
     timer.start()
